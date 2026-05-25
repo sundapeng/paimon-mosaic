@@ -89,7 +89,20 @@ jobs:
         run: cargo test -- --skip test_read_java_written_file --skip test_read_python_written_file
 
   cpp-test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arrow_install: linux-apt
+            ffi_lib: libpaimon_mosaic_ffi.so
+          - os: ubuntu-24.04-arm
+            arrow_install: linux-apt
+            ffi_lib: libpaimon_mosaic_ffi.so
+          - os: macos-latest
+            arrow_install: brew
+            ffi_lib: libpaimon_mosaic_ffi.dylib
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
 
@@ -100,11 +113,12 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
 
-      - name: Install Arrow C++
+      - name: Install Arrow C++ (Linux apt)
+        if: matrix.arrow_install == 'linux-apt'
         run: |
           sudo apt-get update
           sudo apt-get install -y apt-transport-https lsb-release ca-certificates curl
@@ -113,19 +127,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libarrow-dev
 
+      - name: Install Arrow C++ (macOS brew)
+        if: matrix.arrow_install == 'brew'
+        run: brew install apache-arrow
+
       - name: Build FFI library
         run: cargo build --release -p paimon-mosaic-ffi
 
       - name: Build C++ test
         run: |
           cmake -S cpp -B cpp/build \
-            -DMOSAIC_FFI_LIB=${{ github.workspace }}/target/release/libpaimon_mosaic_ffi.so
+            -DMOSAIC_FFI_LIB=${{ github.workspace }}/target/release/${{ matrix.ffi_lib }}
           cmake --build cpp/build
 
       - name: Run C++ test
         run: ctest --output-on-failure --test-dir cpp/build
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
+          DYLD_FALLBACK_LIBRARY_PATH: ${{ github.workspace }}/target/release
 
   cpp-test-sanitizer:
     runs-on: ubuntu-latest

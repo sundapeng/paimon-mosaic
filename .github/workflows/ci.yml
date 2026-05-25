@@ -127,6 +127,49 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
 
+  cpp-test-sanitizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Rust Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install Arrow C++
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apt-transport-https lsb-release ca-certificates curl
+          curl -fsSL https://apache.jfrog.io/artifactory/arrow/$(lsb_release --id --short | tr 'A-Z' 'a-z')/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb -o /tmp/arrow-apt.deb
+          sudo apt-get install -y /tmp/arrow-apt.deb
+          sudo apt-get update
+          sudo apt-get install -y libarrow-dev
+
+      - name: Build FFI library
+        run: cargo build --release -p paimon-mosaic-ffi
+
+      - name: Build C++ test (Debug + ASan/UBSan)
+        run: |
+          cmake -S cpp -B cpp/build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DMOSAIC_ENABLE_SANITIZERS=ON \
+            -DMOSAIC_FFI_LIB=${{ github.workspace }}/target/release/libpaimon_mosaic_ffi.so
+          cmake --build cpp/build
+
+      - name: Run C++ test under sanitizers
+        run: cpp/build/test_mosaic
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
+          ASAN_OPTIONS: detect_leaks=0:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+
   java-test:
     runs-on: ubuntu-latest
     steps:

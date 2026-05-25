@@ -37,3 +37,11 @@ endif()
 add_executable(test_mosaic test_mosaic.cpp)
 target_include_directories(test_mosaic PRIVATE ${CMAKE_SOURCE_DIR}/../include)
 target_link_libraries(test_mosaic Arrow::arrow_shared ${MOSAIC_FFI_LIB})
+
+option(MOSAIC_ENABLE_SANITIZERS "Build with AddressSanitizer + UndefinedBehaviorSanitizer" OFF)
+if(MOSAIC_ENABLE_SANITIZERS)
+    target_compile_options(test_mosaic PRIVATE
+        -fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g)
+    target_link_options(test_mosaic PRIVATE
+        -fsanitize=address,undefined)
+endif()

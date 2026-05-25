@@ -17,8 +17,6 @@
  * under the License.
  */
 
-#include "mosaic.hpp"
-
 #include <arrow/api.h>
 #include <arrow/c/bridge.h>
 
@@ -30,10 +28,22 @@
 #include <functional>
 #include <vector>
 
-#define ASSERT_EQ(a, b) do { if ((a) != (b)) { \
-    fprintf(stderr, "FAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #a, #b); abort(); } } while(0)
-#define ASSERT_TRUE(x) do { if (!(x)) { \
-    fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #x); abort(); } } while(0)
+#include "mosaic.hpp"
+
+#define ASSERT_EQ(a, b)                                                            \
+    do {                                                                           \
+        if ((a) != (b)) {                                                          \
+            fprintf(stderr, "FAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #a, #b); \
+            abort();                                                               \
+        }                                                                          \
+    } while (0)
+#define ASSERT_TRUE(x)                                                   \
+    do {                                                                 \
+        if (!(x)) {                                                      \
+            fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #x); \
+            abort();                                                     \
+        }                                                                \
+    } while (0)
 
 struct MemBuffer {
     std::vector<uint8_t> data;
@@ -63,11 +73,9 @@ static mosaic::InputFile make_input(const MemBuffer& buf) {
     return in;
 }
 
-static std::vector<uint8_t> write_and_get(
-    const std::shared_ptr<arrow::Schema>& schema,
-    const std::shared_ptr<arrow::RecordBatch>& batch,
-    mosaic::WriterOptions opts = {})
-{
+static std::vector<uint8_t> write_and_get(const std::shared_ptr<arrow::Schema>& schema,
+                                          const std::shared_ptr<arrow::RecordBatch>& batch,
+                                          mosaic::WriterOptions opts = {}) {
     MemBuffer buf;
 
     struct ArrowSchema c_schema;
@@ -86,9 +94,7 @@ static std::vector<uint8_t> write_and_get(
     return buf.data;
 }
 
-static std::shared_ptr<arrow::RecordBatch> read_row_group(
-    mosaic::Reader& reader, uint32_t rg)
-{
+static std::shared_ptr<arrow::RecordBatch> read_row_group(mosaic::Reader& reader, uint32_t rg) {
     struct ArrowArray c_array;
     struct ArrowSchema c_schema;
     reader.read_row_group(rg, &c_array, &c_schema);
@@ -114,11 +120,12 @@ static void test_basic_roundtrip() {
         assert(name_b.Append("user_" + std::to_string(i)).ok());
         assert(score_b.Append(i * 1.5).ok());
     }
-    auto batch = arrow::RecordBatch::Make(schema, 50, {
-        id_b.Finish().ValueUnsafe(),
-        name_b.Finish().ValueUnsafe(),
-        score_b.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 50,
+                                          {
+                                              id_b.Finish().ValueUnsafe(),
+                                              name_b.Finish().ValueUnsafe(),
+                                              score_b.Finish().ValueUnsafe(),
+                                          });
 
     mosaic::WriterOptions opts;
     opts.num_buckets = 2;
@@ -162,8 +169,8 @@ static void test_null_values() {
     assert(name_b.AppendNull().ok());
     assert(name_b.Append("world").ok());
 
-    auto batch = arrow::RecordBatch::Make(schema, 3, {
-        id_b.Finish().ValueUnsafe(), name_b.Finish().ValueUnsafe()});
+    auto batch = arrow::RecordBatch::Make(
+        schema, 3, {id_b.Finish().ValueUnsafe(), name_b.Finish().ValueUnsafe()});
     auto data_vec = write_and_get(schema, batch);
 
     MemBuffer buf;
@@ -214,17 +221,18 @@ static void test_all_types() {
     uint8_t bin_data[] = {0x01, 0x02};
     assert(bin_b.Append(bin_data, 2).ok());
 
-    auto batch = arrow::RecordBatch::Make(schema, 1, {
-        bool_b.Finish().ValueUnsafe(),
-        i8_b.Finish().ValueUnsafe(),
-        i16_b.Finish().ValueUnsafe(),
-        i32_b.Finish().ValueUnsafe(),
-        i64_b.Finish().ValueUnsafe(),
-        f32_b.Finish().ValueUnsafe(),
-        f64_b.Finish().ValueUnsafe(),
-        utf8_b.Finish().ValueUnsafe(),
-        bin_b.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 1,
+                                          {
+                                              bool_b.Finish().ValueUnsafe(),
+                                              i8_b.Finish().ValueUnsafe(),
+                                              i16_b.Finish().ValueUnsafe(),
+                                              i32_b.Finish().ValueUnsafe(),
+                                              i64_b.Finish().ValueUnsafe(),
+                                              f32_b.Finish().ValueUnsafe(),
+                                              f64_b.Finish().ValueUnsafe(),
+                                              utf8_b.Finish().ValueUnsafe(),
+                                              bin_b.Finish().ValueUnsafe(),
+                                          });
 
     auto data_vec = write_and_get(schema, batch);
 
@@ -235,14 +243,27 @@ static void test_all_types() {
     ASSERT_EQ(rb->num_rows(), 1);
     ASSERT_EQ(rb->num_columns(), 9);
 
-    ASSERT_TRUE(std::static_pointer_cast<arrow::BooleanArray>(rb->GetColumnByName("f_bool"))->Value(0));
-    ASSERT_EQ(std::static_pointer_cast<arrow::Int8Array>(rb->GetColumnByName("f_int8"))->Value(0), 42);
-    ASSERT_EQ(std::static_pointer_cast<arrow::Int16Array>(rb->GetColumnByName("f_int16"))->Value(0), 1234);
-    ASSERT_EQ(std::static_pointer_cast<arrow::Int32Array>(rb->GetColumnByName("f_int32"))->Value(0), 100000);
-    ASSERT_EQ(std::static_pointer_cast<arrow::Int64Array>(rb->GetColumnByName("f_int64"))->Value(0), 9999999999LL);
-    ASSERT_TRUE(std::abs(std::static_pointer_cast<arrow::FloatArray>(rb->GetColumnByName("f_float32"))->Value(0) - 3.14f) < 1e-5f);
-    ASSERT_TRUE(std::abs(std::static_pointer_cast<arrow::DoubleArray>(rb->GetColumnByName("f_float64"))->Value(0) - 2.718281828) < 1e-9);
-    ASSERT_EQ(std::static_pointer_cast<arrow::StringArray>(rb->GetColumnByName("f_utf8"))->GetString(0), "hello");
+    ASSERT_TRUE(
+        std::static_pointer_cast<arrow::BooleanArray>(rb->GetColumnByName("f_bool"))->Value(0));
+    ASSERT_EQ(std::static_pointer_cast<arrow::Int8Array>(rb->GetColumnByName("f_int8"))->Value(0),
+              42);
+    ASSERT_EQ(std::static_pointer_cast<arrow::Int16Array>(rb->GetColumnByName("f_int16"))->Value(0),
+              1234);
+    ASSERT_EQ(std::static_pointer_cast<arrow::Int32Array>(rb->GetColumnByName("f_int32"))->Value(0),
+              100000);
+    ASSERT_EQ(std::static_pointer_cast<arrow::Int64Array>(rb->GetColumnByName("f_int64"))->Value(0),
+              9999999999LL);
+    ASSERT_TRUE(
+        std::abs(std::static_pointer_cast<arrow::FloatArray>(rb->GetColumnByName("f_float32"))
+                     ->Value(0) -
+                 3.14f) < 1e-5f);
+    ASSERT_TRUE(
+        std::abs(std::static_pointer_cast<arrow::DoubleArray>(rb->GetColumnByName("f_float64"))
+                     ->Value(0) -
+                 2.718281828) < 1e-9);
+    ASSERT_EQ(
+        std::static_pointer_cast<arrow::StringArray>(rb->GetColumnByName("f_utf8"))->GetString(0),
+        "hello");
     printf("  PASS test_all_types\n");
 }
 
@@ -266,10 +287,11 @@ static void test_timestamp_ns_roundtrip() {
     assert(ts_ns_tz_b.AppendNull().ok());
     assert(ts_ns_tz_b.Append(values[1]).ok());
 
-    auto batch = arrow::RecordBatch::Make(schema, 3, {
-        ts_ns_b.Finish().ValueUnsafe(),
-        ts_ns_tz_b.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 3,
+                                          {
+                                              ts_ns_b.Finish().ValueUnsafe(),
+                                              ts_ns_tz_b.Finish().ValueUnsafe(),
+                                          });
 
     auto data_vec = write_and_get(schema, batch);
 
@@ -309,10 +331,13 @@ static void test_projection() {
         assert(cb.Append(static_cast<double>(i)).ok());
         assert(db.Append("extra_" + std::to_string(i)).ok());
     }
-    auto batch = arrow::RecordBatch::Make(schema, 20, {
-        ab.Finish().ValueUnsafe(), bb.Finish().ValueUnsafe(),
-        cb.Finish().ValueUnsafe(), db.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 20,
+                                          {
+                                              ab.Finish().ValueUnsafe(),
+                                              bb.Finish().ValueUnsafe(),
+                                              cb.Finish().ValueUnsafe(),
+                                              db.Finish().ValueUnsafe(),
+                                          });
 
     mosaic::WriterOptions opts;
     opts.num_buckets = 2;
@@ -345,9 +370,11 @@ static void test_projection_empty() {
         assert(ab.Append(i).ok());
         assert(bb.Append("v" + std::to_string(i)).ok());
     }
-    auto batch = arrow::RecordBatch::Make(schema, 5, {
-        ab.Finish().ValueUnsafe(), bb.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 5,
+                                          {
+                                              ab.Finish().ValueUnsafe(),
+                                              bb.Finish().ValueUnsafe(),
+                                          });
 
     auto data_vec = write_and_get(schema, batch);
 
@@ -377,10 +404,12 @@ static void test_statistics() {
         assert(name_b.Append("item_" + std::to_string(i)).ok());
         assert(score_b.Append(i * 1.1).ok());
     }
-    auto batch = arrow::RecordBatch::Make(schema, 10, {
-        id_b.Finish().ValueUnsafe(), name_b.Finish().ValueUnsafe(),
-        score_b.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 10,
+                                          {
+                                              id_b.Finish().ValueUnsafe(),
+                                              name_b.Finish().ValueUnsafe(),
+                                              score_b.Finish().ValueUnsafe(),
+                                          });
 
     mosaic::WriterOptions opts;
     const char* stats_cols[] = {"id", "score"};
@@ -415,9 +444,11 @@ static void test_compression_zstd() {
         assert(xb.Append(i).ok());
         assert(yb.Append("v_" + std::to_string(i)).ok());
     }
-    auto batch = arrow::RecordBatch::Make(schema, 100, {
-        xb.Finish().ValueUnsafe(), yb.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 100,
+                                          {
+                                              xb.Finish().ValueUnsafe(),
+                                              yb.Finish().ValueUnsafe(),
+                                          });
 
     mosaic::WriterOptions opts;
     opts.compression = 1;
@@ -451,11 +482,12 @@ static void test_schema_roundtrip() {
     arrow::DoubleBuilder sr_score_b;
     assert(sr_score_b.Append(1.0).ok());
 
-    auto batch = arrow::RecordBatch::Make(schema, 1, {
-        sr_name_b.Finish().ValueUnsafe(),
-        sr_id_b.Finish().ValueUnsafe(),
-        sr_score_b.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 1,
+                                          {
+                                              sr_name_b.Finish().ValueUnsafe(),
+                                              sr_id_b.Finish().ValueUnsafe(),
+                                              sr_score_b.Finish().ValueUnsafe(),
+                                          });
 
     auto data_vec = write_and_get(schema, batch);
 
@@ -506,9 +538,11 @@ static void test_multiple_row_groups() {
             assert(id_b.Append(i).ok());
             assert(data_b.Append(static_cast<int64_t>(i) * 3).ok());
         }
-        auto batch = arrow::RecordBatch::Make(schema, n, {
-            id_b.Finish().ValueUnsafe(), data_b.Finish().ValueUnsafe(),
-        });
+        auto batch = arrow::RecordBatch::Make(schema, n,
+                                              {
+                                                  id_b.Finish().ValueUnsafe(),
+                                                  data_b.Finish().ValueUnsafe(),
+                                              });
         struct ArrowArray c_array;
         struct ArrowSchema c_batch_schema;
         st = arrow::ExportRecordBatch(*batch, &c_array, &c_batch_schema);
@@ -553,10 +587,12 @@ static void test_writer_stats() {
         assert(name_b.Append("item_" + std::to_string(i)).ok());
         assert(score_b.Append(i * 1.1).ok());
     }
-    auto batch = arrow::RecordBatch::Make(schema, 10, {
-        id_b.Finish().ValueUnsafe(), name_b.Finish().ValueUnsafe(),
-        score_b.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 10,
+                                          {
+                                              id_b.Finish().ValueUnsafe(),
+                                              name_b.Finish().ValueUnsafe(),
+                                              score_b.Finish().ValueUnsafe(),
+                                          });
 
     mosaic::WriterOptions opts;
     const char* stats_cols[] = {"id", "score"};
@@ -586,8 +622,9 @@ static void test_writer_stats() {
         ASSERT_TRUE(s.has_min_max());
     }
 
-    auto id_stat = std::find_if(stats.begin(), stats.end(),
-        [](const mosaic::ColumnStatistics& s) { return s.column_name == "id"; });
+    auto id_stat = std::find_if(stats.begin(), stats.end(), [](const mosaic::ColumnStatistics& s) {
+        return s.column_name == "id";
+    });
     ASSERT_TRUE(id_stat != stats.end());
     ASSERT_EQ(id_stat->min_value.size(), 4u);
     ASSERT_EQ(id_stat->max_value.size(), 4u);
@@ -619,9 +656,11 @@ static void test_writer_stats_with_nulls() {
     assert(b_b.Append(100).ok());
     assert(b_b.Append(50).ok());
 
-    auto batch = arrow::RecordBatch::Make(schema, 4, {
-        a_b.Finish().ValueUnsafe(), b_b.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 4,
+                                          {
+                                              a_b.Finish().ValueUnsafe(),
+                                              b_b.Finish().ValueUnsafe(),
+                                          });
 
     mosaic::WriterOptions opts;
     opts.num_buckets = 1;
@@ -646,8 +685,9 @@ static void test_writer_stats_with_nulls() {
     auto stats = writer.get_row_group_statistics(0);
     ASSERT_EQ(stats.size(), 2u);
 
-    auto a_stat = std::find_if(stats.begin(), stats.end(),
-        [](const mosaic::ColumnStatistics& s) { return s.column_name == "a"; });
+    auto a_stat = std::find_if(stats.begin(), stats.end(), [](const mosaic::ColumnStatistics& s) {
+        return s.column_name == "a";
+    });
     ASSERT_TRUE(a_stat != stats.end());
     ASSERT_EQ(a_stat->null_count, 1u);
     ASSERT_TRUE(a_stat->has_min_max());
@@ -659,8 +699,9 @@ static void test_writer_stats_with_nulls() {
     ASSERT_EQ(min_a, 5);
     ASSERT_EQ(max_a, 20);
 
-    auto b_stat = std::find_if(stats.begin(), stats.end(),
-        [](const mosaic::ColumnStatistics& s) { return s.column_name == "b"; });
+    auto b_stat = std::find_if(stats.begin(), stats.end(), [](const mosaic::ColumnStatistics& s) {
+        return s.column_name == "b";
+    });
     ASSERT_TRUE(b_stat != stats.end());
     ASSERT_EQ(b_stat->null_count, 2u);
     ASSERT_TRUE(b_stat->has_min_max());
@@ -684,9 +725,10 @@ static void test_writer_stats_all_null() {
     assert(x_b.AppendNull().ok());
     assert(x_b.AppendNull().ok());
 
-    auto batch = arrow::RecordBatch::Make(schema, 3, {
-        x_b.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 3,
+                                          {
+                                              x_b.Finish().ValueUnsafe(),
+                                          });
 
     mosaic::WriterOptions opts;
     opts.num_buckets = 1;
@@ -728,9 +770,11 @@ static void test_writer_stats_matches_reader() {
         assert(id_b.Append(i * 5).ok());
         assert(val_b.Append(i * 2.5).ok());
     }
-    auto batch = arrow::RecordBatch::Make(schema, 20, {
-        id_b.Finish().ValueUnsafe(), val_b.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 20,
+                                          {
+                                              id_b.Finish().ValueUnsafe(),
+                                              val_b.Finish().ValueUnsafe(),
+                                          });
 
     mosaic::WriterOptions opts;
     opts.num_buckets = 1;
@@ -777,9 +821,10 @@ static void test_stats_empty_string_min() {
     assert(s_b.Append("").ok());
     assert(s_b.Append("b").ok());
 
-    auto batch = arrow::RecordBatch::Make(schema, 2, {
-        s_b.Finish().ValueUnsafe(),
-    });
+    auto batch = arrow::RecordBatch::Make(schema, 2,
+                                          {
+                                              s_b.Finish().ValueUnsafe(),
+                                          });
 
     mosaic::WriterOptions opts;
     opts.num_buckets = 1;

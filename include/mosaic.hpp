@@ -80,7 +80,7 @@ inline int64_t stream_get_pos(void* ctx) noexcept {
     }
 }
 
-} // namespace detail
+}  // namespace detail
 
 struct WriterOptions {
     uint8_t compression = 1;  // ZSTD
@@ -159,10 +159,8 @@ public:
     }
 
     void write(void* ffi_array, void* ffi_schema) {
-        check(mosaic_writer_write_batch(
-            handle_,
-            static_cast<ArrowArray*>(ffi_array),
-            static_cast<ArrowSchema*>(ffi_schema)));
+        check(mosaic_writer_write_batch(handle_, static_cast<ArrowArray*>(ffi_array),
+                                        static_cast<ArrowSchema*>(ffi_schema)));
     }
 
     int64_t estimated_file_size() const {
@@ -194,10 +192,9 @@ public:
         std::vector<size_t> min_lens(n);
         std::vector<const uint8_t*> max_ptrs(n);
         std::vector<size_t> max_lens(n);
-        check(mosaic_writer_row_group_stats(handle_, rg_index,
-            names.data(), null_counts.data(),
-            min_ptrs.data(), min_lens.data(),
-            max_ptrs.data(), max_lens.data()));
+        check(mosaic_writer_row_group_stats(handle_, rg_index, names.data(), null_counts.data(),
+                                            min_ptrs.data(), min_lens.data(), max_ptrs.data(),
+                                            max_lens.data()));
         std::vector<ColumnStatistics> result;
         result.reserve(n);
         for (uint32_t i = 0; i < n; i++) {
@@ -208,8 +205,7 @@ public:
                 s.has_min_max_ = true;
                 s.min_value.assign(min_ptrs[i], min_ptrs[i] + min_lens[i]);
             }
-            if (max_ptrs[i])
-                s.max_value.assign(max_ptrs[i], max_ptrs[i] + max_lens[i]);
+            if (max_ptrs[i]) s.max_value.assign(max_ptrs[i], max_ptrs[i] + max_lens[i]);
             result.push_back(std::move(s));
         }
         return result;
@@ -248,7 +244,7 @@ inline uint64_t input_length(void* ctx) noexcept {
     return cbs->file_length;
 }
 
-} // namespace detail
+}  // namespace detail
 
 class Reader {
 public:
@@ -279,9 +275,8 @@ public:
         auto* rb = mosaic_row_group_reader_read_columns(rg);
         mosaic_row_group_reader_free(rg);
         if (!rb) throw Error("read_columns failed");
-        int rc = mosaic_record_batch_export(rb,
-            static_cast<ArrowArray*>(out_array),
-            static_cast<ArrowSchema*>(out_schema));
+        int rc = mosaic_record_batch_export(rb, static_cast<ArrowArray*>(out_array),
+                                            static_cast<ArrowSchema*>(out_schema));
         mosaic_record_batch_free(rb);
         if (rc != 0) throw Error("record_batch_export failed");
     }
@@ -306,10 +301,9 @@ public:
         std::vector<size_t> min_lens(n);
         std::vector<const uint8_t*> max_ptrs(n);
         std::vector<size_t> max_lens(n);
-        check(mosaic_reader_row_group_stats(handle_, rg_index,
-            names.data(), null_counts.data(),
-            min_ptrs.data(), min_lens.data(),
-            max_ptrs.data(), max_lens.data()));
+        check(mosaic_reader_row_group_stats(handle_, rg_index, names.data(), null_counts.data(),
+                                            min_ptrs.data(), min_lens.data(), max_ptrs.data(),
+                                            max_lens.data()));
         std::vector<ColumnStatistics> result;
         result.reserve(n);
         for (uint32_t i = 0; i < n; i++) {
@@ -320,8 +314,7 @@ public:
                 s.has_min_max_ = true;
                 s.min_value.assign(min_ptrs[i], min_ptrs[i] + min_lens[i]);
             }
-            if (max_ptrs[i])
-                s.max_value.assign(max_ptrs[i], max_ptrs[i] + max_lens[i]);
+            if (max_ptrs[i]) s.max_value.assign(max_ptrs[i], max_ptrs[i] + max_lens[i]);
             result.push_back(std::move(s));
         }
         return result;
@@ -347,4 +340,4 @@ inline Reader make_reader(InputFile callbacks, uint64_t len) {
     return Reader(std::move(cbs), handle);
 }
 
-} // namespace mosaic
+}  // namespace mosaic

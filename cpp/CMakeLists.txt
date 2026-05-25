@@ -34,9 +34,19 @@ if(NOT MOSAIC_FFI_LIB)
     endif()
 endif()
 
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.tar.gz
+    URL_HASH SHA256=7b42b4d6ed48810c5362c265a17faebe90dc2373c885e5216439d37927f02926
+)
+set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
 add_executable(test_mosaic test_mosaic.cpp)
 target_include_directories(test_mosaic PRIVATE ${CMAKE_SOURCE_DIR}/../include)
-target_link_libraries(test_mosaic Arrow::arrow_shared ${MOSAIC_FFI_LIB})
+target_link_libraries(test_mosaic Arrow::arrow_shared ${MOSAIC_FFI_LIB} GTest::gtest_main)
 
 option(MOSAIC_ENABLE_SANITIZERS "Build with AddressSanitizer + UndefinedBehaviorSanitizer" OFF)
 if(MOSAIC_ENABLE_SANITIZERS)
@@ -45,3 +55,15 @@ if(MOSAIC_ENABLE_SANITIZERS)
     target_link_options(test_mosaic PRIVATE
         -fsanitize=address,undefined)
 endif()
+
+enable_testing()
+include(GoogleTest)
+get_filename_component(MOSAIC_FFI_DIR "${MOSAIC_FFI_LIB}" DIRECTORY)
+if(APPLE)
+    set(MOSAIC_TEST_LIB_ENV "DYLD_FALLBACK_LIBRARY_PATH=${MOSAIC_FFI_DIR}")
+else()
+    set(MOSAIC_TEST_LIB_ENV "LD_LIBRARY_PATH=${MOSAIC_FFI_DIR}")
+endif()
+gtest_discover_tests(test_mosaic
+    DISCOVERY_MODE PRE_TEST
+    PROPERTIES ENVIRONMENT "${MOSAIC_TEST_LIB_ENV}")

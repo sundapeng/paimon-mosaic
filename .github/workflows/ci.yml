@@ -123,7 +123,7 @@ jobs:
           cmake --build cpp/build
 
       - name: Run C++ test
-        run: cpp/build/test_mosaic
+        run: ctest --output-on-failure --test-dir cpp/build
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
 
@@ -164,7 +164,7 @@ jobs:
           cmake --build cpp/build
 
       - name: Run C++ test under sanitizers
-        run: cpp/build/test_mosaic
+        run: ctest --output-on-failure --test-dir cpp/build
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
           ASAN_OPTIONS: detect_leaks=0:halt_on_error=1

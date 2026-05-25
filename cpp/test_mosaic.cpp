@@ -19,31 +19,16 @@
 
 #include <arrow/api.h>
 #include <arrow/c/bridge.h>
+#include <gtest/gtest.h>
 
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <cstdio>
 #include <cstring>
 #include <functional>
 #include <vector>
 
 #include "mosaic.hpp"
-
-#define ASSERT_EQ(a, b)                                                            \
-    do {                                                                           \
-        if ((a) != (b)) {                                                          \
-            fprintf(stderr, "FAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #a, #b); \
-            abort();                                                               \
-        }                                                                          \
-    } while (0)
-#define ASSERT_TRUE(x)                                                   \
-    do {                                                                 \
-        if (!(x)) {                                                      \
-            fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #x); \
-            abort();                                                     \
-        }                                                                \
-    } while (0)
 
 struct MemBuffer {
     std::vector<uint8_t> data;
@@ -105,7 +90,7 @@ static std::shared_ptr<arrow::RecordBatch> read_row_group(mosaic::Reader& reader
 
 // ======================== Tests ========================
 
-static void test_basic_roundtrip() {
+TEST(MosaicCpp, BasicRoundtrip) {
     auto schema = arrow::schema({
         arrow::field("id", arrow::int32(), false),
         arrow::field("name", arrow::utf8()),
@@ -150,10 +135,9 @@ static void test_basic_roundtrip() {
         ASSERT_EQ(names->GetString(i), "user_" + std::to_string(i));
         ASSERT_TRUE(std::abs(scores->Value(i) - i * 1.5) < 1e-9);
     }
-    printf("  PASS test_basic_roundtrip\n");
 }
 
-static void test_null_values() {
+TEST(MosaicCpp, NullValues) {
     auto schema = arrow::schema({
         arrow::field("id", arrow::int32()),
         arrow::field("name", arrow::utf8()),
@@ -185,10 +169,9 @@ static void test_null_values() {
     ASSERT_TRUE(names->IsNull(1));
     ASSERT_TRUE(!names->IsNull(2));
     ASSERT_EQ(names->GetString(2), "world");
-    printf("  PASS test_null_values\n");
 }
 
-static void test_all_types() {
+TEST(MosaicCpp, AllTypes) {
     auto schema = arrow::schema({
         arrow::field("f_bool", arrow::boolean()),
         arrow::field("f_int8", arrow::int8()),
@@ -264,10 +247,9 @@ static void test_all_types() {
     ASSERT_EQ(
         std::static_pointer_cast<arrow::StringArray>(rb->GetColumnByName("f_utf8"))->GetString(0),
         "hello");
-    printf("  PASS test_all_types\n");
 }
 
-static void test_timestamp_ns_roundtrip() {
+TEST(MosaicCpp, TimestampNsRoundtrip) {
     auto ts_ns_type = arrow::timestamp(arrow::TimeUnit::NANO);
     auto ts_ns_tz_type = arrow::timestamp(arrow::TimeUnit::NANO, "Asia/Shanghai");
     auto schema = arrow::schema({
@@ -311,10 +293,9 @@ static void test_timestamp_ns_roundtrip() {
     ASSERT_EQ(ts_ns_tz->Value(0), values[0]);
     ASSERT_TRUE(ts_ns_tz->IsNull(1));
     ASSERT_EQ(ts_ns_tz->Value(2), values[1]);
-    printf("  PASS test_timestamp_ns_roundtrip\n");
 }
 
-static void test_projection() {
+TEST(MosaicCpp, Projection) {
     auto schema = arrow::schema({
         arrow::field("a", arrow::int32()),
         arrow::field("b", arrow::utf8()),
@@ -355,10 +336,9 @@ static void test_projection() {
     ASSERT_EQ(rb->schema()->field(0)->name(), "c");
     ASSERT_EQ(rb->schema()->field(1)->name(), "a");
     ASSERT_EQ(rb->schema()->field(2)->name(), "b");
-    printf("  PASS test_projection\n");
 }
 
-static void test_projection_empty() {
+TEST(MosaicCpp, ProjectionEmpty) {
     auto schema = arrow::schema({
         arrow::field("a", arrow::int32()),
         arrow::field("b", arrow::utf8()),
@@ -386,10 +366,9 @@ static void test_projection_empty() {
     auto rb = read_row_group(reader, 0);
     ASSERT_EQ(rb->num_columns(), 0);
     ASSERT_EQ(rb->num_rows(), 5);
-    printf("  PASS test_projection_empty\n");
 }
 
-static void test_statistics() {
+TEST(MosaicCpp, Statistics) {
     auto schema = arrow::schema({
         arrow::field("id", arrow::int32()),
         arrow::field("name", arrow::utf8()),
@@ -429,10 +408,9 @@ static void test_statistics() {
         ASSERT_EQ(s.null_count, 0u);
         ASSERT_TRUE(s.has_min_max());
     }
-    printf("  PASS test_statistics\n");
 }
 
-static void test_compression_zstd() {
+TEST(MosaicCpp, CompressionZstd) {
     auto schema = arrow::schema({
         arrow::field("x", arrow::int32()),
         arrow::field("y", arrow::utf8()),
@@ -465,10 +443,9 @@ static void test_compression_zstd() {
     for (int i = 0; i < 100; i++) {
         ASSERT_EQ(xs->Value(i), i);
     }
-    printf("  PASS test_compression_zstd\n");
 }
 
-static void test_schema_roundtrip() {
+TEST(MosaicCpp, SchemaRoundtrip) {
     auto schema = arrow::schema({
         arrow::field("name", arrow::utf8(), true),
         arrow::field("id", arrow::int32(), false),
@@ -507,10 +484,9 @@ static void test_schema_roundtrip() {
     ASSERT_EQ(read_schema->field(2)->name(), "score");
     ASSERT_TRUE(read_schema->field(0)->nullable());
     ASSERT_TRUE(!read_schema->field(1)->nullable());
-    printf("  PASS test_schema_roundtrip\n");
 }
 
-static void test_multiple_row_groups() {
+TEST(MosaicCpp, MultipleRowGroups) {
     auto schema = arrow::schema({
         arrow::field("id", arrow::int32()),
         arrow::field("data", arrow::int64()),
@@ -569,10 +545,9 @@ static void test_multiple_row_groups() {
         offset += static_cast<int>(rb->num_rows());
     }
     ASSERT_EQ(offset, 500);
-    printf("  PASS test_multiple_row_groups\n");
 }
 
-static void test_writer_stats() {
+TEST(MosaicCpp, WriterStats) {
     auto schema = arrow::schema({
         arrow::field("id", arrow::int32()),
         arrow::field("name", arrow::utf8()),
@@ -635,10 +610,9 @@ static void test_writer_stats() {
     max_id = __builtin_bswap32(max_id);
     ASSERT_EQ(min_id, 0);
     ASSERT_EQ(max_id, 90);
-    printf("  PASS test_writer_stats\n");
 }
 
-static void test_writer_stats_with_nulls() {
+TEST(MosaicCpp, WriterStatsWithNulls) {
     auto schema = arrow::schema({
         arrow::field("a", arrow::int32()),
         arrow::field("b", arrow::int64()),
@@ -712,10 +686,9 @@ static void test_writer_stats_with_nulls() {
     max_b = __builtin_bswap64(max_b);
     ASSERT_EQ(min_b, 50);
     ASSERT_EQ(max_b, 100);
-    printf("  PASS test_writer_stats_with_nulls\n");
 }
 
-static void test_writer_stats_all_null() {
+TEST(MosaicCpp, WriterStatsAllNull) {
     auto schema = arrow::schema({
         arrow::field("x", arrow::int32()),
     });
@@ -755,10 +728,9 @@ static void test_writer_stats_all_null() {
     ASSERT_EQ(stats[0].column_name, "x");
     ASSERT_EQ(stats[0].null_count, 3u);
     ASSERT_TRUE(!stats[0].has_min_max());
-    printf("  PASS test_writer_stats_all_null\n");
 }
 
-static void test_writer_stats_matches_reader() {
+TEST(MosaicCpp, WriterStatsMatchesReader) {
     auto schema = arrow::schema({
         arrow::field("id", arrow::int32()),
         arrow::field("value", arrow::float64()),
@@ -809,10 +781,9 @@ static void test_writer_stats_matches_reader() {
         ASSERT_EQ(writer_stats[i].min_value, reader_stats[i].min_value);
         ASSERT_EQ(writer_stats[i].max_value, reader_stats[i].max_value);
     }
-    printf("  PASS test_writer_stats_matches_reader\n");
 }
 
-static void test_stats_empty_string_min() {
+TEST(MosaicCpp, StatsEmptyStringMin) {
     auto schema = arrow::schema({
         arrow::field("s", arrow::utf8()),
     });
@@ -866,26 +837,4 @@ static void test_stats_empty_string_min() {
     ASSERT_EQ(reader_stats[0].min_value.size(), 0u);
     ASSERT_EQ(reader_stats[0].max_value, (std::vector<uint8_t>{'b'}));
     ASSERT_EQ(reader_stats[0].null_count, 0u);
-    printf("  PASS test_stats_empty_string_min\n");
-}
-
-int main() {
-    printf("Running Mosaic C++ tests...\n");
-    test_basic_roundtrip();
-    test_null_values();
-    test_all_types();
-    test_timestamp_ns_roundtrip();
-    test_projection();
-    test_projection_empty();
-    test_statistics();
-    test_compression_zstd();
-    test_schema_roundtrip();
-    test_multiple_row_groups();
-    test_writer_stats();
-    test_writer_stats_with_nulls();
-    test_writer_stats_all_null();
-    test_writer_stats_matches_reader();
-    test_stats_empty_string_min();
-    printf("All %d tests passed.\n", 15);
-    return 0;
 }
